@@ -10,9 +10,20 @@ import { FileThreadStore, FileSessionStore } from '../src/adapters/file/index.js
 import { RuntimeEventRecorder } from '../src/services/runtime-event-recorder.js'
 import { ContextCompactor } from '../src/loop/context-compactor.js'
 import { resolveModelContextProfile } from '../src/loop/model-context-profile.js'
-import { makeAssistantTextItem, makeToolCallItem, makeUserItem } from '../src/domain/item.js'
+import {
+  makeApprovalItem,
+  makeAssistantTextItem,
+  makeToolCallItem,
+  makeToolResultItem,
+  makeUserInputItem,
+  makeUserItem
+} from '../src/domain/item.js'
 import { createThreadRecord } from '../src/domain/thread.js'
 import { createImmutablePrefix, setSystemPrompt } from '../src/cache/immutable-prefix.js'
+import { InflightTracker } from '../src/loop/inflight-tracker.js'
+import { SteeringQueue } from '../src/loop/steering-queue.js'
+import { SequentialIdGenerator } from '../src/ports/id-generator.js'
+import { TurnService } from '../src/services/turn-service.js'
 import type { TurnItem } from '../src/contracts/items.js'
 import type { ModelRequest, ModelStreamChunk } from '../src/ports/model-client.js'
 import {
@@ -2424,6 +2435,111 @@ describe('FileSessionStore', () => {
     })
     const event = await recorder.record({ kind: 'heartbeat', threadId: 'thr_seq' })
     expect(event.seq).toBe(8)
+  })
+
+  it.each([
+    ['aborted', 'aborted'],
+    ['failed', 'failed']
+  ] as const)('finalizes open turn items in messages.jsonl when a turn is %s', async (finalStatus, expectedToolStatus) => {
+    const nowIso = () => '2026-06-05T00:00:00.000Z'
+    const threadId = `thr_finalize_${finalStatus}`
+    const threadStore = new FileThreadStore({ dataDir, now: () => new Date(nowIso()) })
+    const sessionStore = new FileSessionStore({ dataDir })
+    const bus = new InMemoryEventBus()
+    const turns = new TurnService({
+      threadStore,
+      sessionStore,
+      events: new RuntimeEventRecorder({
+        eventBus: bus,
+        sessionStore,
+        allocateSeq: (id) => bus.allocateSeq(id),
+        nowIso
+      }),
+      inflight: new InflightTracker(),
+      steering: new SteeringQueue(),
+      compactor: new ContextCompactor({ softThreshold: 64, hardThreshold: 128 }),
+      ids: new SequentialIdGenerator(),
+      nowIso
+    })
+
+    await threadStore.upsert(
+      createThreadRecord({ id: threadId, title: 'demo', workspace: '/tmp', model: 'm' })
+    )
+    const { turnId } = await turns.startTurn({
+      threadId,
+      request: { prompt: 'run a tool' }
+    })
+    await turns.applyItem(
+      threadId,
+      makeToolCallItem({
+        id: 'item_tool_open',
+        turnId,
+        threadId,
+        callId: 'call_open',
+        toolName: 'echo',
+        arguments: { text: 'hi' }
+      })
+    )
+    await turns.applyItem(
+      threadId,
+      makeToolResultItem({
+        id: 'item_result_open',
+        turnId,
+        threadId,
+        callId: 'call_open',
+        toolName: 'echo',
+        output: { partial: true },
+        status: 'running'
+      })
+    )
+    await turns.applyItem(
+      threadId,
+      makeApprovalItem({
+        id: 'item_approval_open',
+        turnId,
+        threadId,
+        approvalId: 'approval_open',
+        toolName: 'echo',
+        summary: 'Approve echo'
+      })
+    )
+    await turns.applyItem(
+      threadId,
+      makeUserInputItem({
+        id: 'item_input_open',
+        turnId,
+        threadId,
+        inputId: 'input_open',
+        prompt: 'Need input'
+      })
+    )
+
+    if (finalStatus === 'aborted') {
+      await turns.interruptTurn({ threadId, turnId })
+    } else {
+      await turns.finishTurn({ threadId, turnId, status: 'failed', error: 'boom' })
+    }
+
+    const latestById = new Map((await sessionStore.loadItems(threadId)).map((item) => [item.id, item]))
+    expect(latestById.get('item_tool_open')?.status).toBe(expectedToolStatus)
+    expect(latestById.get('item_result_open')?.status).toBe(expectedToolStatus)
+    expect(latestById.get('item_approval_open')?.status).toBe('expired')
+    expect(latestById.get('item_input_open')?.status).toBe('cancelled')
+    expect(
+      [...latestById.values()].some((item) =>
+        item.turnId === turnId && (item.status === 'pending' || item.status === 'running')
+      )
+    ).toBe(false)
+
+    const rawMessages = await readFile(join(dataDir, 'threads', threadId, 'messages.jsonl'), 'utf-8')
+    const messageLines = rawMessages
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line) as TurnItem)
+    expect(messageLines.filter((item) => item.id === 'item_tool_open').map((item) => item.status))
+      .toEqual(['pending', expectedToolStatus])
+    expect(messageLines.filter((item) => item.id === 'item_result_open').map((item) => item.status))
+      .toEqual(['running', expectedToolStatus])
   })
 
   it('survives a malformed JSONL line', async () => {

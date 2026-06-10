@@ -5,6 +5,7 @@ import { createThreadRecord } from '../src/domain/thread.js'
 import { UsageService } from '../src/services/usage-service.js'
 import { seedUsageCarryover } from '../src/server/runtime-factory.js'
 import type { UsageSnapshot } from '../src/contracts/usage.js'
+import type { SessionStore } from '../src/ports/session-store.js'
 
 function usage(overrides: Partial<UsageSnapshot>): UsageSnapshot {
   const promptTokens = overrides.promptTokens ?? 10
@@ -71,7 +72,7 @@ describe('runtime factory usage carryover', () => {
   it('seeds runtime usage from indexed latest snapshots without replaying event logs', async () => {
     const threadStore = new InMemoryThreadStore()
     const sessionStore = new InMemorySessionStore() as InMemorySessionStore & {
-      loadLatestUsageSnapshots: InMemorySessionStore['loadLatestUsageSnapshots']
+      loadLatestUsageSnapshots: NonNullable<SessionStore['loadLatestUsageSnapshots']>
     }
     const usageService = new UsageService()
     sessionStore.loadLatestUsageSnapshots = vi.fn(async () => [

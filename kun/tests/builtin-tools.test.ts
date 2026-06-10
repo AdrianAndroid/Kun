@@ -57,14 +57,15 @@ import type { TurnItem } from '../src/contracts/items.js'
 import type { FsStats } from '../src/adapters/tool/builtin-tool-types.js'
 import type { ToolHostContext } from '../src/ports/tool-host.js'
 
-function buildContext(workspace: string): ToolHostContext {
+function buildContext(workspace: string, overrides: Partial<ToolHostContext> = {}): ToolHostContext {
   return {
     threadId: 'thr_1',
     turnId: 'turn_1',
     workspace,
     approvalPolicy: 'on-request',
     abortSignal: new AbortController().signal,
-    awaitApproval: async () => 'allow'
+    awaitApproval: async () => 'allow',
+    ...overrides
   }
 }
 
@@ -108,6 +109,67 @@ describe('Kun built-in tools', () => {
     expect([...allBuiltinToolNames].every((name) => toolNames.has(name))).toBe(true)
   })
 
+  it('hides mutating and shell tools in read-only sandbox mode', async () => {
+    const tools = await host.listTools(buildContext(workspace, { sandboxMode: 'read-only' }))
+    const names = tools.map((tool) => tool.name)
+
+    expect(names).toEqual(expect.arrayContaining(['read', 'grep', 'find', 'ls']))
+    expect(names).not.toContain('bash')
+    expect(names).not.toContain('edit')
+    expect(names).not.toContain('write')
+  })
+
+  it('allows file tools but hides host shell commands in workspace-write sandbox mode', async () => {
+    const tools = await host.listTools(buildContext(workspace, { sandboxMode: 'workspace-write' }))
+    const names = tools.map((tool) => tool.name)
+
+    expect(names).toEqual(expect.arrayContaining(['read', 'grep', 'find', 'ls', 'edit', 'write']))
+    expect(names).not.toContain('bash')
+  })
+
+  it('blocks direct file writes in read-only sandbox mode', async () => {
+    const result = await host.execute(
+      {
+        callId: 'call_write',
+        toolName: 'write',
+        arguments: { path: 'blocked.md', content: 'nope' }
+      },
+      buildContext(workspace, { sandboxMode: 'read-only' })
+    )
+
+    expect(result.approved).toBe(false)
+    expect(result.item).toMatchObject({
+      kind: 'tool_result',
+      toolName: 'write',
+      isError: true,
+      output: {
+        code: 'sandbox_read_only'
+      }
+    })
+    await expect(readFile(join(workspace, 'blocked.md'), 'utf8')).rejects.toThrow()
+  })
+
+  it('blocks host shell execution in workspace-write sandbox mode', async () => {
+    const result = await host.execute(
+      {
+        callId: 'call_bash',
+        toolName: 'bash',
+        arguments: { command: 'echo hello' }
+      },
+      buildContext(workspace, { sandboxMode: 'workspace-write' })
+    )
+
+    expect(result.approved).toBe(false)
+    expect(result.item).toMatchObject({
+      kind: 'tool_result',
+      toolName: 'bash',
+      isError: true,
+      output: {
+        code: 'sandbox_command_blocked'
+      }
+    })
+  })
+
   it('advertises structured GUI input choices and normalizes single-question options', async () => {
     const tools = await host.listTools(buildContext(workspace))
     const requestInputTool = tools.find((tool) => tool.name === 'request_user_input')
@@ -141,7 +203,8 @@ describe('Kun built-in tools', () => {
       }
     )
 
-    expect(seenInput?.questions[0]?.options).toEqual([
+    const capturedInput = seenInput as { questions: Array<{ options: unknown }> } | null
+    expect(capturedInput?.questions[0]?.options).toEqual([
       { label: 'South', description: '' },
       { label: 'North', description: 'Cooler weather' }
     ])

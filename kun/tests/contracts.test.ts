@@ -121,6 +121,16 @@ describe('contracts', () => {
     expect(parsed.reasoningEffort).toBe('max')
   })
 
+  it('accepts per-turn execution policy on start turn payloads', () => {
+    const parsed = StartTurnRequest.parse({
+      prompt: 'Inspect without changing files',
+      approvalPolicy: 'on-request',
+      sandboxMode: 'read-only'
+    })
+    expect(parsed.approvalPolicy).toBe('on-request')
+    expect(parsed.sandboxMode).toBe('read-only')
+  })
+
   it('accepts turn failure lifecycle messages', () => {
     const event = RuntimeEvent.parse({
       kind: 'turn_failed',
