@@ -264,24 +264,9 @@ function metaAttachmentReferences(meta: RuntimeDisclosureMetadata | undefined): 
     .filter((entry): entry is AttachmentReference => entry !== null)
 }
 
-function UserAttachmentPreviews({
-  meta
-}: {
-  meta?: RuntimeDisclosureMetadata
-}): ReactElement | null {
+function useAttachmentPreviewUrls(attachments: AttachmentReference[]): Record<string, string> {
   const activeThreadId = useChatStore((s) => s.activeThreadId)
   const workspaceRoot = useChatStore((s) => s.workspaceRoot)
-  const attachments = useMemo(() => {
-    const attachmentIds = metaStringArray(meta, 'attachmentIds')
-    const byId = new Map<string, AttachmentReference>()
-    for (const attachment of metaAttachmentReferences(meta)) {
-      byId.set(attachment.id, attachment)
-    }
-    for (const id of attachmentIds) {
-      if (!byId.has(id)) byId.set(id, { id })
-    }
-    return [...byId.values()]
-  }, [meta])
   const [resolvedPreviewUrls, setResolvedPreviewUrls] = useState<Record<string, string>>({})
   const [failedPreviewIds, setFailedPreviewIds] = useState<Record<string, true>>({})
   const missingPreviewKey = attachments
@@ -335,6 +320,27 @@ function UserAttachmentPreviews({
     }
   }, [activeThreadId, missingPreviewKey, workspaceRoot])
 
+  return resolvedPreviewUrls
+}
+
+function UserAttachmentPreviews({
+  meta
+}: {
+  meta?: RuntimeDisclosureMetadata
+}): ReactElement | null {
+  const attachments = useMemo(() => {
+    const attachmentIds = metaStringArray(meta, 'attachmentIds')
+    const byId = new Map<string, AttachmentReference>()
+    for (const attachment of metaAttachmentReferences(meta)) {
+      byId.set(attachment.id, attachment)
+    }
+    for (const id of attachmentIds) {
+      if (!byId.has(id)) byId.set(id, { id })
+    }
+    return [...byId.values()]
+  }, [meta])
+  const resolvedPreviewUrls = useAttachmentPreviewUrls(attachments)
+
   if (attachments.length === 0) return null
 
   return (
@@ -365,6 +371,49 @@ function UserAttachmentPreviews({
           )
         })}
       </div>
+    </div>
+  )
+}
+
+function ToolAttachmentPreviews({
+  meta
+}: {
+  meta?: Record<string, unknown>
+}): ReactElement | null {
+  const attachments = useMemo(
+    () => metaAttachmentReferences(meta as RuntimeDisclosureMetadata | undefined),
+    [meta]
+  )
+  const resolvedPreviewUrls = useAttachmentPreviewUrls(attachments)
+
+  if (attachments.length === 0) return null
+
+  return (
+    <div className="flex min-w-0 flex-wrap gap-2 border-t border-ds-border-muted/60 px-4 py-3">
+      {attachments.map((attachment) => {
+        const previewUrl = attachment.previewUrl ?? resolvedPreviewUrls[attachment.id]
+        const title = attachment.name || attachment.id
+        return (
+          <span
+            key={attachment.id}
+            className="block h-32 w-40 overflow-hidden rounded-[14px] border border-ds-border-muted bg-ds-card shadow-sm"
+            title={title}
+          >
+            {previewUrl ? (
+              <img
+                src={previewUrl}
+                alt={title}
+                className="h-full w-full object-cover"
+                loading="lazy"
+              />
+            ) : (
+              <span className="flex h-full w-full items-center justify-center text-ds-faint">
+                <ImageIcon className="h-7 w-7" strokeWidth={1.6} />
+              </span>
+            )}
+          </span>
+        )
+      })}
     </div>
   )
 }
@@ -1111,6 +1160,7 @@ function ToolEntry({ block, nested = false }: { block: ToolBlock; nested?: boole
           )
         ) : null}
       </button>
+      <ToolAttachmentPreviews meta={block.meta} />
       {effectiveOpen && hasDetail ? (
         <div className="ds-panel-strip min-w-0 border-t border-ds-border-muted/60 px-4 py-3">
           {patchText !== undefined ? (

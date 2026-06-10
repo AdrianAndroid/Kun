@@ -84,6 +84,8 @@ const api = {
     ipcRenderer.invoke('write:copy-rich-text', payload),
   requestWriteInlineCompletion: (payload) =>
     ipcRenderer.invoke('write:inline-completion', payload),
+  generateWriteInfographic: (payload) =>
+    ipcRenderer.invoke('write:generate-infographic', payload),
   listWriteInlineCompletionDebugEntries: () =>
     ipcRenderer.invoke('write:inline-completion-debug:list'),
   clearWriteInlineCompletionDebugEntries: () =>

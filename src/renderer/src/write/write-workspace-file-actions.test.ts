@@ -10,6 +10,7 @@ function makeBaseState(): WriteWorkspaceState {
     workspaceRoots: [],
     inlineCompletion: defaultWriteSettings().inlineCompletion,
     inlineCompletionApiReady: false,
+    imageGenReady: false,
     settingsLoading: false,
     settingsError: null,
     ...initialState(),

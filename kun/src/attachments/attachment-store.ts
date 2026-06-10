@@ -179,7 +179,7 @@ function validateTextFallback(fallback: AttachmentTextFallback, config: Attachme
   }
 }
 
-function detectImage(buffer: Buffer): { mimeType: string; width?: number; height?: number } | null {
+export function detectImage(buffer: Buffer): { mimeType: string; width?: number; height?: number } | null {
   if (buffer.length >= 24 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) {
     return { mimeType: 'image/png', width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) }
   }

@@ -242,6 +242,36 @@ function extractToolSources(item: CoreTurnItemJson): Array<Record<string, string
   return normalizeWebSources(payload.sources) ?? normalizeWebSources(payload.citations)
 }
 
+type ToolAttachmentReference = {
+  id: string
+  name?: string
+  mimeType?: string
+  width?: number
+  height?: number
+}
+
+function extractToolAttachments(item: CoreTurnItemJson): ToolAttachmentReference[] | undefined {
+  if (item.kind !== 'tool_result') return undefined
+  const payload = payloadFor(item)
+  if (!Array.isArray(payload.attachments)) return undefined
+  const attachments = payload.attachments
+    .map((entry): ToolAttachmentReference | null => {
+      if (!entry || typeof entry !== 'object') return null
+      const raw = entry as Record<string, unknown>
+      const id = typeof raw.id === 'string' && raw.id.trim() ? raw.id.trim() : ''
+      if (!id) return null
+      return {
+        id,
+        ...(typeof raw.name === 'string' && raw.name.trim() ? { name: raw.name.trim() } : {}),
+        ...(typeof raw.mimeType === 'string' && raw.mimeType.trim() ? { mimeType: raw.mimeType.trim() } : {}),
+        ...(typeof raw.width === 'number' && Number.isFinite(raw.width) ? { width: raw.width } : {}),
+        ...(typeof raw.height === 'number' && Number.isFinite(raw.height) ? { height: raw.height } : {})
+      }
+    })
+    .filter((entry): entry is ToolAttachmentReference => entry !== null)
+  return attachments.length > 0 ? attachments : undefined
+}
+
 function applyCommandResultMeta(meta: Record<string, unknown>, item: CoreTurnItemJson): void {
   const payload = payloadFor(item)
   for (const key of COMMAND_RESULT_META_KEYS) {
@@ -351,6 +381,8 @@ function toolBlockFromItem(item: CoreTurnItemJson, child?: CoreChildRuntimeMetad
   applyRuntimeDisclosureMeta(meta, item, child)
   const sources = extractToolSources(item)
   if (sources) meta.sources = sources
+  const attachments = extractToolAttachments(item)
+  if (attachments) meta.attachments = attachments
   const presentation = inferToolPresentation(item)
   if (presentation.command) meta.command = presentation.command
   if (presentation.toolKind === 'command_execution') applyCommandResultMeta(meta, item)

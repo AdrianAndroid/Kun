@@ -18,6 +18,7 @@ import { buildMcpToolProviders } from '../adapters/tool/mcp-tool-provider.js'
 import { buildMemoryToolProviders } from '../adapters/tool/memory-tool-provider.js'
 import { buildDelegationToolProviders } from '../adapters/tool/delegation-tool-provider.js'
 import { buildWebToolProviders } from '../adapters/tool/web-tool-provider.js'
+import { buildImageGenToolProviders } from '../adapters/tool/image-gen-tool-provider.js'
 import { LocalWorkspaceInspector } from '../adapters/workspace/local-workspace-inspector.js'
 import { createImmutablePrefix } from '../cache/immutable-prefix.js'
 import {
@@ -179,6 +180,10 @@ export async function createKunServeRuntime(
         nowIso
       })
     : undefined
+  const imageGenProviders = buildImageGenToolProviders(options.capabilities?.imageGen, {
+    attachmentStore,
+    nowIso
+  })
   const baseToolProviders = [
     {
       id: 'builtin',
@@ -189,7 +194,8 @@ export async function createKunServeRuntime(
     },
     ...mcpProviders.providers,
     ...webProviders.providers,
-    ...buildMemoryToolProviders(memoryStore)
+    ...buildMemoryToolProviders(memoryStore),
+    ...imageGenProviders.providers
   ]
   const childRegistry = new CapabilityRegistry(baseToolProviders)
   const childToolHost = new LocalToolHost({ registry: childRegistry, readTracker: true })
@@ -253,6 +259,10 @@ export async function createKunServeRuntime(
     },
     subagents: {
       available: Boolean(delegationRuntime)
+    },
+    imageGen: {
+      available: imageGenProviders.available,
+      reason: imageGenProviders.diagnostics.find((diagnostic) => diagnostic.reason)?.reason
     }
   })
   const registry = new CapabilityRegistry([
@@ -358,7 +368,8 @@ export async function createKunServeRuntime(
         : { enabled: false, rootDir: '', count: 0, totalBytes: 0 },
       memory: memoryStore
         ? await memoryStore.diagnostics()
-        : { enabled: false, rootDir: '', activeCount: 0, tombstoneCount: 0, lastInjectedIds: [] }
+        : { enabled: false, rootDir: '', activeCount: 0, tombstoneCount: 0, lastInjectedIds: [] },
+      imageGen: imageGenProviders.diagnostics
     }),
     skills: () => skillRuntime.diagnostics(),
     shutdown: async () => {

@@ -57,6 +57,7 @@ import {
   workspaceFileWritePayloadSchema,
   writeExportPayloadSchema,
   writeRichClipboardPayloadSchema,
+  writeInfographicPayloadSchema,
   writeInlineCompletionPayloadSchema,
   workspaceRootSchema
 } from './app-ipc-schemas'
@@ -87,6 +88,7 @@ import {
   listWriteInlineCompletionDebugEntries,
   requestWriteInlineCompletion
 } from '../services/write-inline-completion-service'
+import { requestWriteInfographic } from '../services/write-infographic-service'
 import { copyWriteDocumentAsRichText, exportWriteDocument } from '../services/write-export-service'
 import { listGuiSkills } from '../services/skill-service'
 
@@ -744,6 +746,12 @@ export function registerAppIpcHandlers(options: RegisterAppIpcHandlersOptions): 
     requestWriteInlineCompletion(
       await store.load(),
       parseIpcPayload('write:inline-completion', writeInlineCompletionPayloadSchema, payload)
+    )
+  )
+  ipcMain.handle('write:generate-infographic', async (_, payload: unknown) =>
+    requestWriteInfographic(
+      await store.load(),
+      parseIpcPayload('write:generate-infographic', writeInfographicPayloadSchema, payload)
     )
   )
   ipcMain.handle('write:inline-completion-debug:list', async () => listWriteInlineCompletionDebugEntries())

@@ -103,6 +103,19 @@ export type KunRuntimeSettingsV1 = {
   contextCompaction: KunContextCompactionSettingsV1
   /** Low-level loop guards and model argument repair tuning. */
   runtimeTuning: KunRuntimeTuningSettingsV1
+  /** OpenAI-compatible image generation provider exposed to the agent as the generate_image tool. */
+  imageGeneration: KunImageGenerationSettingsV1
+}
+
+export type KunImageGenerationSettingsV1 = {
+  enabled: boolean
+  baseUrl: string
+  /** Stored in plaintext inside Kun config.json, same as the runtime apiKey. */
+  apiKey: string
+  model: string
+  /** Default "WxH" or "auto" used when the model omits aspect ratio and size. Empty means provider default. */
+  defaultSize: string
+  timeoutMs: number
 }
 
 export type KunMcpSearchMode = 'direct' | 'search' | 'auto'
@@ -192,7 +205,7 @@ export type KunTokenEconomySettingsPatchV1 = Partial<
 export type KunRuntimeSettingsPatchV1 = Partial<
   Omit<
     KunRuntimeSettingsV1,
-    'mcpSearch' | 'storage' | 'contextCompaction' | 'runtimeTuning' | 'tokenEconomy'
+    'mcpSearch' | 'storage' | 'contextCompaction' | 'runtimeTuning' | 'tokenEconomy' | 'imageGeneration'
   >
 > & {
   mcpSearch?: Partial<KunMcpSearchSettingsV1>
@@ -200,6 +213,7 @@ export type KunRuntimeSettingsPatchV1 = Partial<
   storage?: Partial<KunStorageSettingsV1>
   contextCompaction?: Partial<KunContextCompactionSettingsV1>
   runtimeTuning?: KunRuntimeTuningSettingsPatchV1
+  imageGeneration?: Partial<KunImageGenerationSettingsV1>
 }
 
 export type KunSettingsEnvelopePatchV1 = {

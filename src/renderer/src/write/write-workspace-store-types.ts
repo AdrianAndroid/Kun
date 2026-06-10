@@ -13,6 +13,8 @@ export type WriteWorkspaceState = {
   workspaceRoots: string[]
   inlineCompletion: WriteInlineCompletionSettingsV1
   inlineCompletionApiReady: boolean
+  /** True when the image generation provider is fully configured (enables 生成信息图). */
+  imageGenReady: boolean
   settingsLoading: boolean
   settingsError: string | null
   workspaceRoot: string

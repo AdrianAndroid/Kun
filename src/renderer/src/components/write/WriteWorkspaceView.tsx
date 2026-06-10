@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { WriteExportFormat } from '@shared/write-export'
+import { WRITE_INFOGRAPHIC_MAX_TEXT_CHARS } from '@shared/write-infographic'
 import { useChatStore } from '../../store/chat-store'
 import { formatWorkspacePickerError } from '../../lib/format-workspace-picker-error'
 import {
@@ -72,6 +73,7 @@ export function WriteWorkspaceView({
     rootDirectory,
     inlineCompletion,
     inlineCompletionApiReady,
+    imageGenReady,
     fileContent,
     imageDataUrl,
     imageMimeType,
@@ -106,6 +108,7 @@ export function WriteWorkspaceView({
       rootDirectory: s.rootDirectory,
       inlineCompletion: s.inlineCompletion,
       inlineCompletionApiReady: s.inlineCompletionApiReady,
+      imageGenReady: s.imageGenReady,
       fileContent: s.fileContent,
       imageDataUrl: s.imageDataUrl,
       imageMimeType: s.imageMimeType,
@@ -145,6 +148,7 @@ export function WriteWorkspaceView({
   const [inlineAgentValue, setInlineAgentValue] = useState('')
   const [inlineAgentOpen, setInlineAgentOpen] = useState(false)
   const [inlineEditInFlight, setInlineEditInFlight] = useState(false)
+  const [infographicInFlight, setInfographicInFlight] = useState(false)
   const [modeMenuOpen, setModeMenuOpen] = useState(false)
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
   const [exportingFormat, setExportingFormat] = useState<WriteExportFormat | typeof WRITE_RICH_CLIPBOARD_ACTION | null>(null)
@@ -328,6 +332,82 @@ export function WriteWorkspaceView({
       }))
     } finally {
       setInlineEditInFlight(false)
+    }
+  }
+
+  const generateInfographic = async (): Promise<void> => {
+    if (!workspaceReady || !activeFilePath || infographicInFlight) return
+    if (renderSafety.readOnly) {
+      setFileError(t('writeReadOnlySaveDisabled'))
+      return
+    }
+    if (selection.ranges.length !== 1 || !selection.text.trim()) {
+      setFileError(t('writeInlineEditNoSelection'))
+      return
+    }
+    if (typeof window.dsGui?.generateWriteInfographic !== 'function') {
+      setFileError(t('writeInfographicUnavailable'))
+      return
+    }
+    const range = selection.ranges[0]
+    const richHandle = richModeActive ? richHandleRef.current : null
+    setInfographicInFlight(true)
+    try {
+      const result = await window.dsGui.generateWriteInfographic({
+        text: selection.text.trim().slice(0, WRITE_INFOGRAPHIC_MAX_TEXT_CHARS),
+        filePath: activeFilePath,
+        workspaceRoot
+      })
+      if (!result.ok) {
+        setFileError(t('writeInfographicFailed', { message: result.message }))
+        return
+      }
+      const insertion = `\n\n![${t('writeInfographicAlt')}](${result.relativePath})\n`
+      // Insert after the line containing the selection end, not mid-sentence:
+      // a partial selection should never split its own paragraph.
+      const lineEndAfter = (content: string, offset: number): number => {
+        const nextBreak = content.indexOf('\n', offset)
+        return nextBreak < 0 ? content.length : nextBreak
+      }
+      if (richHandle) {
+        // Rich mode: insert at a projection offset so undo history and node
+        // structure stay intact.
+        const projection = richHandle.getProjectionText() ?? ''
+        const insertAt = lineEndAfter(projection, range.to)
+        const applied = richHandle.applyProjectedReplacement(
+          { from: insertAt, to: insertAt },
+          '',
+          insertion,
+          t('writeInfographicGenerate')
+        )
+        if (!applied) {
+          setFileError(t('writeInlineEditChanged'))
+          return
+        }
+      } else {
+        const latest = useWriteWorkspaceStore.getState()
+        if (
+          latest.activeFilePath !== activeFilePath ||
+          latest.activeFileKind !== 'text' ||
+          latest.fileContent.slice(range.from, range.to) !== range.text
+        ) {
+          setFileError(t('writeInlineEditChanged'))
+          return
+        }
+        const insertAt = lineEndAfter(latest.fileContent, range.to)
+        setFileContent(
+          latest.fileContent.slice(0, insertAt) + insertion + latest.fileContent.slice(insertAt)
+        )
+      }
+      setSelection({ text: '', ranges: [], charCount: 0 })
+      setFileError(null)
+      showExportNotice({ tone: 'success', message: t('writeInfographicInserted') })
+    } catch (error) {
+      setFileError(t('writeInfographicFailed', {
+        message: error instanceof Error ? error.message : String(error)
+      }))
+    } finally {
+      setInfographicInFlight(false)
     }
   }
 
@@ -719,6 +799,9 @@ export function WriteWorkspaceView({
           onValueChange={setInlineAgentValue}
           onSubmitPrompt={submitInlineAgent}
           onApplyEdit={(value) => void submitInlineEdit(value)}
+          infographicEnabled={imageGenReady && isMarkdown && !renderSafety.readOnly}
+          infographicInFlight={infographicInFlight}
+          onGenerateInfographic={() => void generateInfographic()}
         />
       ) : null}
 

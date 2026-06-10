@@ -486,6 +486,9 @@ describe('cli', () => {
     expect(config.attachments.textFallbackMaxImageDimension).toBe(1280)
     expect(config.attachments.textFallbackPreferredMimeType).toBe('image/webp')
     expect(config.memory.scopes).toEqual(['user', 'workspace', 'project'])
+    expect(config.imageGen.enabled).toBe(false)
+    expect(config.imageGen.timeoutMs).toBe(180_000)
+    expect(config.imageGen.maxReferenceImages).toBe(4)
   })
 
   it('ignores legacy subagent step-limit config fields', () => {
@@ -581,6 +584,8 @@ describe('cli', () => {
     expect(manifest.attachments.textFallbackMaxBase64Bytes).toBe(512 * 1024)
     expect(manifest.attachments.textFallbackMaxImageDimension).toBe(1280)
     expect(manifest.attachments.textFallbackPreferredMimeType).toBe('image/webp')
+    expect(manifest.imageGen.available).toBe(false)
+    expect(manifest.imageGen.reason).toMatch(/disabled/)
 
     const enabledButMissingProvider = buildRuntimeCapabilityManifest({
       model: modelCapabilitiesForModel('deepseek-chat'),

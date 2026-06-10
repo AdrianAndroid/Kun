@@ -47,6 +47,10 @@ import type {
   WriteInlineCompletionResult
 } from './write-inline-completion'
 import type {
+  WriteInfographicRequest,
+  WriteInfographicResult
+} from './write-infographic'
+import type {
   WriteExportPayload,
   WriteExportResult,
   WriteRichClipboardPayload,
@@ -186,6 +190,9 @@ export type DsGuiApi = {
   requestWriteInlineCompletion: (
     payload: WriteInlineCompletionRequest
   ) => Promise<WriteInlineCompletionResult>
+  generateWriteInfographic: (
+    payload: WriteInfographicRequest
+  ) => Promise<WriteInfographicResult>
   listWriteInlineCompletionDebugEntries: () => Promise<WriteInlineCompletionDebugEntry[]>
   clearWriteInlineCompletionDebugEntries: () => Promise<boolean>
   exportWriteDocument: (payload: WriteExportPayload) => Promise<WriteExportResult>

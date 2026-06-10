@@ -23,11 +23,18 @@ function applyWriteSettingsState(
   settings: Awaited<ReturnType<typeof rendererRuntimeClient.getSettings>>
 ): ReturnType<typeof withResolvedInlineCompletionSettings> {
   const write = withResolvedInlineCompletionSettings(normalizeWriteSettings(settings.write), settings)
+  const imageGeneration = settings.agents?.kun?.imageGeneration
   set({
     defaultWorkspaceRoot: write.defaultWorkspaceRoot,
     workspaceRoots: write.workspaces,
     inlineCompletion: write.inlineCompletion,
     inlineCompletionApiReady: Boolean(resolveWriteInlineCompletionApiKey(settings).trim()),
+    imageGenReady: Boolean(
+      imageGeneration?.enabled &&
+      imageGeneration.baseUrl.trim() &&
+      imageGeneration.apiKey.trim() &&
+      imageGeneration.model.trim()
+    ),
     settingsError: null
   })
   return write

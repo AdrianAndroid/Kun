@@ -126,6 +126,17 @@ describe('kun defaults', () => {
     })
   })
 
+  it('defaults image generation to off with empty provider fields', () => {
+    expect(defaultKunRuntimeSettings().imageGeneration).toEqual({
+      enabled: false,
+      baseUrl: '',
+      apiKey: '',
+      model: '',
+      defaultSize: '',
+      timeoutMs: 180000
+    })
+  })
+
   it('defaults advanced Kun runtime tuning to conservative values', () => {
     expect(defaultKunRuntimeSettings()).toMatchObject({
       storage: {
@@ -364,6 +375,40 @@ describe('mergeKunRuntimeSettings', () => {
     expect(next.runtimeTuning.toolStorm.threshold).toBe(5)
     expect(next.runtimeTuning.toolArgumentRepair).toEqual(current.runtimeTuning.toolArgumentRepair)
   })
+
+  it('deep-merges image generation settings and normalizes invalid values', () => {
+    const current = defaultKunRuntimeSettings()
+    const next = mergeKunRuntimeSettings(current, {
+      imageGeneration: {
+        enabled: true,
+        baseUrl: ' https://api.siliconflow.cn/v1 ',
+        apiKey: 'sk-image',
+        model: 'Kwai-Kolors/Kolors'
+      }
+    })
+
+    expect(next.imageGeneration).toEqual({
+      enabled: true,
+      baseUrl: 'https://api.siliconflow.cn/v1',
+      apiKey: 'sk-image',
+      model: 'Kwai-Kolors/Kolors',
+      defaultSize: '',
+      timeoutMs: 180000
+    })
+
+    const sized = mergeKunRuntimeSettings(next, {
+      imageGeneration: { defaultSize: '1536x1024', timeoutMs: 240000 }
+    })
+    expect(sized.imageGeneration.defaultSize).toBe('1536x1024')
+    expect(sized.imageGeneration.timeoutMs).toBe(240000)
+    expect(sized.imageGeneration.apiKey).toBe('sk-image')
+
+    const invalidSize = mergeKunRuntimeSettings(sized, {
+      imageGeneration: { defaultSize: 'huge', timeoutMs: -5 }
+    })
+    expect(invalidSize.imageGeneration.defaultSize).toBe('')
+    expect(invalidSize.imageGeneration.timeoutMs).toBe(180000)
+  })
 })
 
 describe('kun envelope helpers', () => {
@@ -435,6 +480,23 @@ describe('legacy Kun defaults migration', () => {
     } as unknown as Parameters<typeof migrateLegacyAppSettings>[0])
 
     expect(migrated.agents?.kun?.port).toBe(8899)
+  })
+
+  it('fills image generation defaults for settings stored before the feature existed', () => {
+    const migrated = migrateLegacyAppSettings({
+      version: 1,
+      agentProvider: 'deepseek-runtime',
+      deepseek: {}
+    } as unknown as Parameters<typeof migrateLegacyAppSettings>[0])
+
+    expect(migrated.agents?.kun?.imageGeneration).toEqual({
+      enabled: false,
+      baseUrl: '',
+      apiKey: '',
+      model: '',
+      defaultSize: '',
+      timeoutMs: 180000
+    })
   })
 
   it('uses the current approval policy default for missing legacy local HTTP settings', () => {

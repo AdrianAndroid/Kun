@@ -315,6 +315,60 @@ describe('create_plan tool mapping', () => {
     }
   })
 
+  it('lifts tool_result output attachments into tool block meta', () => {
+    const item: CoreTurnItemJson = {
+      id: 'item_img_1',
+      turnId: 'turn_1',
+      threadId: 'thr_1',
+      role: 'tool',
+      status: 'completed',
+      createdAt: '2024-01-01T00:00:00.000Z',
+      kind: 'tool_result',
+      toolName: 'generate_image',
+      callId: 'call_img_1',
+      output: {
+        files: [{ relativePath: '.deepseekgui-images/img-1.png' }],
+        attachments: [
+          { id: 'att_abc', name: 'img-1.png', mimeType: 'image/png', width: 1024, height: 576 },
+          { id: '   ' },
+          'not-an-object',
+          { name: 'missing-id.png' }
+        ],
+        endpoint: 'generations'
+      }
+    }
+    const block = chatBlockFromItem(item)
+    expect(block).not.toBeNull()
+    if (block && block.kind === 'tool') {
+      expect(block.meta?.attachments).toEqual([
+        { id: 'att_abc', name: 'img-1.png', mimeType: 'image/png', width: 1024, height: 576 }
+      ])
+    } else {
+      throw new Error('expected tool block')
+    }
+  })
+
+  it('omits meta attachments when tool_result output has none worth showing', () => {
+    const item: CoreTurnItemJson = {
+      id: 'item_img_2',
+      turnId: 'turn_1',
+      threadId: 'thr_1',
+      role: 'tool',
+      status: 'completed',
+      createdAt: '2024-01-01T00:00:00.000Z',
+      kind: 'tool_result',
+      toolName: 'generate_image',
+      callId: 'call_img_2',
+      output: { attachments: 'nope' }
+    }
+    const block = chatBlockFromItem(item)
+    if (block && block.kind === 'tool') {
+      expect(block.meta?.attachments).toBeUndefined()
+    } else {
+      throw new Error('expected tool block')
+    }
+  })
+
   it('surfaces create_plan tool events through the event sink', () => {
     let captured: unknown = null
     const sink: ThreadEventSink = {

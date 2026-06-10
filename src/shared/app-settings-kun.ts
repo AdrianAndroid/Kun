@@ -9,6 +9,7 @@ import {
   type AppSettingsV1,
   type KunContextCompactionSettingsV1,
   type KunHistoryHygieneSettingsV1,
+  type KunImageGenerationSettingsV1,
   type KunMcpSearchSettingsV1,
   type KunRuntimeTuningSettingsV1,
   type KunRuntimeSettingsPatchV1,
@@ -108,7 +109,19 @@ export function defaultKunRuntimeSettings(
     mcpSearch: defaultKunMcpSearchSettings(),
     storage: defaultKunStorageSettings(),
     contextCompaction: defaultKunContextCompactionSettings(),
-    runtimeTuning: defaultKunRuntimeTuningSettings()
+    runtimeTuning: defaultKunRuntimeTuningSettings(),
+    imageGeneration: defaultKunImageGenerationSettings()
+  }
+}
+
+export function defaultKunImageGenerationSettings(): KunImageGenerationSettingsV1 {
+  return {
+    enabled: false,
+    baseUrl: '',
+    apiKey: '',
+    model: '',
+    defaultSize: '',
+    timeoutMs: 180_000
   }
 }
 
@@ -234,6 +247,11 @@ export function mergeKunRuntimeSettings(
     ...currentContextCompaction,
     ...(patch?.contextCompaction ?? {})
   })
+  const currentImageGeneration = normalizeKunImageGenerationSettings(current.imageGeneration)
+  const nextImageGeneration = normalizeKunImageGenerationSettings({
+    ...currentImageGeneration,
+    ...(patch?.imageGeneration ?? {})
+  })
   const currentRuntimeTuning = normalizeKunRuntimeTuningSettings(current.runtimeTuning)
   const nextRuntimeTuning = normalizeKunRuntimeTuningSettings({
     ...currentRuntimeTuning,
@@ -258,7 +276,23 @@ export function mergeKunRuntimeSettings(
     mcpSearch: nextMcpSearch,
     storage: nextStorage,
     contextCompaction: nextContextCompaction,
-    runtimeTuning: nextRuntimeTuning
+    runtimeTuning: nextRuntimeTuning,
+    imageGeneration: nextImageGeneration
+  }
+}
+
+function normalizeKunImageGenerationSettings(
+  input: Partial<KunImageGenerationSettingsV1> | undefined
+): KunImageGenerationSettingsV1 {
+  const defaults = defaultKunImageGenerationSettings()
+  const defaultSize = typeof input?.defaultSize === 'string' ? input.defaultSize.trim() : ''
+  return {
+    enabled: input?.enabled === true,
+    baseUrl: typeof input?.baseUrl === 'string' ? input.baseUrl.trim() : defaults.baseUrl,
+    apiKey: typeof input?.apiKey === 'string' ? input.apiKey.trim() : defaults.apiKey,
+    model: typeof input?.model === 'string' ? input.model.trim() : defaults.model,
+    defaultSize: /^(auto|\d+x\d+)$/.test(defaultSize) ? defaultSize : '',
+    timeoutMs: boundedPositiveInt(input?.timeoutMs, defaults.timeoutMs, 600_000)
   }
 }
 
@@ -521,7 +555,8 @@ export function migrateLegacyAppSettings(parsed: LegacyAppSettingsShape): Partia
     mcpSearch: normalizeKunMcpSearchSettings(explicitKun.mcpSearch),
     storage: normalizeKunStorageSettings(explicitKun.storage),
     contextCompaction: normalizeKunContextCompactionSettings(explicitKun.contextCompaction),
-    runtimeTuning: normalizeKunRuntimeTuningSettings(explicitKun.runtimeTuning)
+    runtimeTuning: normalizeKunRuntimeTuningSettings(explicitKun.runtimeTuning),
+    imageGeneration: normalizeKunImageGenerationSettings(explicitKun.imageGeneration)
   }
   // Strip the legacy `agentProvider` discriminator and the legacy
   // per-provider settings from the surfaced migration result. The

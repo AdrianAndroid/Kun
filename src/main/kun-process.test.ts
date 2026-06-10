@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { createServer, type AddressInfo } from 'node:net'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -214,6 +214,72 @@ describe('syncGuiManagedKunConfig', () => {
     expect(parsed.capabilities.attachments).toMatchObject({ enabled: true })
     expect(parsed.capabilities.web).toMatchObject({ enabled: true, fetchEnabled: true })
     expect(parsed.capabilities.mcp.search).toMatchObject({ enabled: false, mode: 'auto' })
+    expect(parsed.capabilities.imageGen).toEqual({ enabled: false, timeoutMs: 180000 })
+  })
+
+  it('writes the image generation capability and omits cleared fields', async () => {
+    if (!tempRoot) throw new Error('temp root not initialized')
+    const configPath = join(tempRoot, 'config.json')
+    const module = await import('./kun-process')
+    const runtime = {
+      ...defaultKunRuntimeSettings(),
+      imageGeneration: {
+        enabled: true,
+        baseUrl: 'https://api.siliconflow.cn/v1',
+        apiKey: 'sk-image-test',
+        model: 'Kwai-Kolors/Kolors',
+        defaultSize: '',
+        timeoutMs: 240000
+      }
+    }
+
+    await module.syncGuiManagedKunConfig(tempRoot, runtime)
+
+    const parsed = JSON.parse(readFileSync(configPath, 'utf8')) as any
+    expect(parsed.capabilities.imageGen).toEqual({
+      enabled: true,
+      baseUrl: 'https://api.siliconflow.cn/v1',
+      apiKey: 'sk-image-test',
+      model: 'Kwai-Kolors/Kolors',
+      timeoutMs: 240000
+    })
+    expect(KunConfigSchema.safeParse(parsed).success).toBe(true)
+
+    // Clearing the key in GUI settings must remove it from config.json.
+    await module.syncGuiManagedKunConfig(tempRoot, {
+      ...runtime,
+      imageGeneration: { ...runtime.imageGeneration, apiKey: '' }
+    })
+    const cleared = JSON.parse(readFileSync(configPath, 'utf8')) as any
+    expect('apiKey' in cleared.capabilities.imageGen).toBe(false)
+  })
+
+  it('keeps the config stable across repeated syncs with imageGen configured', async () => {
+    if (!tempRoot) throw new Error('temp root not initialized')
+    const configPath = join(tempRoot, 'config.json')
+    const module = await import('./kun-process')
+    const runtime = {
+      ...defaultKunRuntimeSettings(),
+      imageGeneration: {
+        enabled: true,
+        baseUrl: 'https://api.siliconflow.cn/v1',
+        apiKey: 'sk-image-test',
+        model: 'Kwai-Kolors/Kolors',
+        defaultSize: '1024x1024',
+        timeoutMs: 180000
+      }
+    }
+
+    await module.syncGuiManagedKunConfig(tempRoot, runtime)
+    const firstText = readFileSync(configPath, 'utf8')
+    const firstMtime = statSync(configPath).mtimeMs
+    await new Promise((resolve) => setTimeout(resolve, 25))
+
+    // If the capability sanitizer strips imageGen from the existing config,
+    // every sync rewrites the file and restarts Kun in a loop.
+    await module.syncGuiManagedKunConfig(tempRoot, runtime)
+    expect(readFileSync(configPath, 'utf8')).toBe(firstText)
+    expect(statSync(configPath).mtimeMs).toBe(firstMtime)
   })
 
   it('adds the built-in schedule MCP server to Kun runtime capabilities', async () => {

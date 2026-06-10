@@ -25,6 +25,7 @@ import {
 } from '../../kun/src/config/kun-config.js'
 import {
   AttachmentsCapabilityConfig,
+  ImageGenCapabilityConfig,
   McpCapabilityConfig,
   McpServerConfig,
   MemoryCapabilityConfig,
@@ -283,7 +284,7 @@ export async function syncGuiManagedKunConfig(
   dataDir: string,
   runtime: Pick<
     KunRuntimeSettingsV1,
-    'mcpSearch' | 'tokenEconomy' | 'storage' | 'contextCompaction' | 'runtimeTuning'
+    'mcpSearch' | 'tokenEconomy' | 'storage' | 'contextCompaction' | 'runtimeTuning' | 'imageGeneration'
   >,
   options?: {
     scheduleMcp?: {
@@ -313,6 +314,7 @@ export async function syncGuiManagedKunConfig(
   const attachments = objectValue(capabilities.attachments)
   const web = objectValue(capabilities.web)
   const skills = objectValue(capabilities.skills)
+  const imageGen = objectValue(capabilities.imageGen)
   const storage = storageConfigForRuntime(runtime.storage)
   const mcpSearch = runtime.mcpSearch
   const skillCapability = await skillCapabilityConfigForRuntime(skills, options?.scheduleMcp?.settings)
@@ -337,6 +339,7 @@ export async function syncGuiManagedKunConfig(
         fetchEnabled: web.fetchEnabled === false ? false : true
       },
       skills: skillCapability,
+      imageGen: imageGenConfigForRuntime(runtime.imageGeneration, imageGen),
       mcp: {
         ...mcp,
         ...(options?.scheduleMcp || mcpSearch.enabled || hasImportedEnabledMcpServer
@@ -602,6 +605,32 @@ function contextCompactionConfigForRuntime(
   }
 }
 
+function imageGenConfigForRuntime(
+  imageGeneration: Pick<KunRuntimeSettingsV1, 'imageGeneration'>['imageGeneration'],
+  existing: Record<string, unknown>
+): Record<string, unknown> {
+  // GUI settings own these fields: cleared values must be removed from the
+  // config (the zod schema rejects empty strings), while unknown hand-edited
+  // keys like maxReferenceImages are preserved via the spread.
+  const next: Record<string, unknown> = {
+    ...existing,
+    enabled: imageGeneration.enabled,
+    timeoutMs: imageGeneration.timeoutMs
+  }
+  const fields = {
+    baseUrl: imageGeneration.baseUrl,
+    apiKey: imageGeneration.apiKey,
+    model: imageGeneration.model,
+    defaultSize: imageGeneration.defaultSize
+  }
+  for (const [key, value] of Object.entries(fields)) {
+    const trimmed = value.trim()
+    if (trimmed) next[key] = trimmed
+    else delete next[key]
+  }
+  return next
+}
+
 function runtimeTuningConfigForRuntime(
   runtimeTuning: Pick<KunRuntimeSettingsV1, 'runtimeTuning'>['runtimeTuning'],
   existing: Record<string, unknown>
@@ -662,6 +691,7 @@ function sanitizeKunCapabilitiesConfig(value: unknown): Record<string, unknown> 
     next.attachments = parseKunConfigSection(AttachmentsCapabilityConfig, raw.attachments)
   }
   if ('memory' in raw) next.memory = parseKunConfigSection(MemoryCapabilityConfig, raw.memory)
+  if ('imageGen' in raw) next.imageGen = parseKunConfigSection(ImageGenCapabilityConfig, raw.imageGen)
   return next
 }
 

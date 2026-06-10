@@ -1,5 +1,5 @@
 import { type KeyboardEvent as ReactKeyboardEvent, type ReactElement, type RefObject } from 'react'
-import { Loader2, MessageSquareQuote, Sparkles } from 'lucide-react'
+import { ImageIcon, Loader2, MessageSquareQuote, Sparkles } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { WriteInlineAgentPosition } from './write-workspace-view-utils'
 
@@ -14,6 +14,10 @@ type Props = {
   onValueChange: (value: string) => void
   onSubmitPrompt: (value: string) => void
   onApplyEdit: (value: string) => void
+  /** Shown only when the image generation provider is configured. */
+  infographicEnabled?: boolean
+  infographicInFlight?: boolean
+  onGenerateInfographic?: () => void
 }
 
 export function WriteInlineAgent({
@@ -26,7 +30,10 @@ export function WriteInlineAgent({
   onClose,
   onValueChange,
   onSubmitPrompt,
-  onApplyEdit
+  onApplyEdit,
+  infographicEnabled = false,
+  infographicInFlight = false,
+  onGenerateInfographic
 }: Props): ReactElement {
   const { t } = useTranslation('common')
 
@@ -100,30 +107,63 @@ export function WriteInlineAgent({
           </button>
         </form>
       ) : (
-        <button
-          type="button"
-          className="write-inline-agent-trigger"
-          aria-label={t('writeInlineEditOpen')}
-          title={t('writeInlineEditOpen')}
-          onPointerDown={(event) => {
-            event.stopPropagation()
-            if (event.pointerType !== 'mouse') event.preventDefault()
-          }}
-          onPointerUp={(event) => {
-            if (event.pointerType === 'mouse') return
-            event.preventDefault()
-            event.stopPropagation()
-            onOpen()
-          }}
-          onMouseDown={(event) => {
-            event.preventDefault()
-            event.stopPropagation()
-          }}
-          onClick={onOpen}
-        >
-          <Sparkles className="h-3.5 w-3.5" strokeWidth={1.9} />
-          <span>{t('writeInlineEditOpen')}</span>
-        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            className="write-inline-agent-trigger"
+            aria-label={t('writeInlineEditOpen')}
+            title={t('writeInlineEditOpen')}
+            onPointerDown={(event) => {
+              event.stopPropagation()
+              if (event.pointerType !== 'mouse') event.preventDefault()
+            }}
+            onPointerUp={(event) => {
+              if (event.pointerType === 'mouse') return
+              event.preventDefault()
+              event.stopPropagation()
+              onOpen()
+            }}
+            onMouseDown={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+            }}
+            onClick={onOpen}
+          >
+            <Sparkles className="h-3.5 w-3.5" strokeWidth={1.9} />
+            <span>{t('writeInlineEditOpen')}</span>
+          </button>
+          {infographicEnabled && onGenerateInfographic ? (
+            <button
+              type="button"
+              className="write-inline-agent-trigger"
+              aria-label={infographicInFlight ? t('writeInfographicGenerating') : t('writeInfographicGenerate')}
+              title={infographicInFlight ? t('writeInfographicGenerating') : t('writeInfographicGenerate')}
+              disabled={infographicInFlight}
+              onPointerDown={(event) => {
+                event.stopPropagation()
+                if (event.pointerType !== 'mouse') event.preventDefault()
+              }}
+              onPointerUp={(event) => {
+                if (event.pointerType === 'mouse') return
+                event.preventDefault()
+                event.stopPropagation()
+                onGenerateInfographic()
+              }}
+              onMouseDown={(event) => {
+                event.preventDefault()
+                event.stopPropagation()
+              }}
+              onClick={onGenerateInfographic}
+            >
+              {infographicInFlight ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.9} />
+              ) : (
+                <ImageIcon className="h-3.5 w-3.5" strokeWidth={1.9} />
+              )}
+              <span>{infographicInFlight ? t('writeInfographicGenerating') : t('writeInfographicGenerate')}</span>
+            </button>
+          ) : null}
+        </div>
       )}
     </div>
   )

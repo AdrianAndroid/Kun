@@ -186,6 +186,16 @@ export const MemoryCapabilityConfig = CapabilityToggleConfig.extend({
 }).strict()
 export type MemoryCapabilityConfig = z.infer<typeof MemoryCapabilityConfig>
 
+export const ImageGenCapabilityConfig = CapabilityToggleConfig.extend({
+  baseUrl: z.string().min(1).optional(),
+  apiKey: z.string().min(1).optional(),
+  model: z.string().min(1).optional(),
+  defaultSize: z.string().min(1).optional(),
+  timeoutMs: z.number().int().positive().default(180_000),
+  maxReferenceImages: z.number().int().positive().max(8).default(4)
+}).strict()
+export type ImageGenCapabilityConfig = z.infer<typeof ImageGenCapabilityConfig>
+
 export const KunCapabilitiesConfig = z
   .object({
     mcp: McpCapabilityConfig.default(() => McpCapabilityConfig.parse({})),
@@ -193,7 +203,8 @@ export const KunCapabilitiesConfig = z
     skills: SkillsCapabilityConfig.default(() => SkillsCapabilityConfig.parse({})),
     subagents: SubagentsCapabilityConfig.default(() => SubagentsCapabilityConfig.parse({})),
     attachments: AttachmentsCapabilityConfig.default(() => AttachmentsCapabilityConfig.parse({})),
-    memory: MemoryCapabilityConfig.default(() => MemoryCapabilityConfig.parse({}))
+    memory: MemoryCapabilityConfig.default(() => MemoryCapabilityConfig.parse({})),
+    imageGen: ImageGenCapabilityConfig.default(() => ImageGenCapabilityConfig.parse({}))
   })
   .strict()
 export type KunCapabilitiesConfig = z.infer<typeof KunCapabilitiesConfig>
@@ -250,6 +261,9 @@ export const RuntimeCapabilityManifest = z
     memory: RuntimeCapabilityState.extend({
       scopes: z.array(z.enum(['user', 'workspace', 'project'])),
       maxInjectedRecords: z.number().int().positive()
+    }).strict(),
+    imageGen: RuntimeCapabilityState.extend({
+      model: z.string().optional()
     }).strict()
   })
   .strict()
@@ -289,6 +303,10 @@ export function buildRuntimeCapabilityManifest(input: {
     reason?: string
   }
   subagents?: {
+    available?: boolean
+    reason?: string
+  }
+  imageGen?: {
     available?: boolean
     reason?: string
   }
@@ -380,6 +398,15 @@ export function buildRuntimeCapabilityManifest(input: {
       ),
       scopes: config.memory.scopes,
       maxInjectedRecords: config.memory.maxInjectedRecords
+    },
+    imageGen: {
+      ...providerCapabilityState(
+        config.imageGen.enabled,
+        'image generation is disabled by config',
+        input.imageGen?.available === true,
+        input.imageGen?.reason ?? 'image generation provider is not configured'
+      ),
+      ...(config.imageGen.model ? { model: config.imageGen.model } : {})
     }
   })
 }

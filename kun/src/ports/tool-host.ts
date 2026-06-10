@@ -15,6 +15,7 @@ export type ToolProviderKind =
   | 'memory'
   | 'gui'
   | 'delegation'
+  | 'image'
 
 export type ToolProviderPolicy = {
   id: string

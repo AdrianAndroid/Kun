@@ -69,6 +69,7 @@ export const useWriteWorkspaceStore = create<WriteWorkspaceState>((set, get) => 
     longMaxTokens: DEFAULT_WRITE_INLINE_LONG_COMPLETION_MAX_TOKENS
   },
   inlineCompletionApiReady: false,
+  imageGenReady: false,
   settingsLoading: false,
   settingsError: null,
   ...initialState(),

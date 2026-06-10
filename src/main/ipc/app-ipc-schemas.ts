@@ -37,6 +37,7 @@ import { DESKTOP_COMMANDS } from '../../shared/ds-gui-api'
 import { GUI_UPDATE_CHANNELS } from '../../shared/gui-update'
 import { KEYBOARD_SHORTCUT_COMMANDS } from '../../shared/keyboard-shortcuts'
 import { WRITE_EXPORT_FORMATS } from '../../shared/write-export'
+import { WRITE_INFOGRAPHIC_MAX_TEXT_CHARS } from '../../shared/write-infographic'
 
 const MAX_BODY_BYTES = 2_000_000
 const MAX_PATH_LENGTH = 4_096
@@ -252,6 +253,14 @@ const kunRuntimePatchSchema = z.object({
     toolArgumentRepair: z.object({
       maxStringBytes: z.number().int().positive().max(16 * 1024 * 1024).optional()
     }).strict().optional()
+  }).strict().optional(),
+  imageGeneration: z.object({
+    enabled: z.boolean().optional(),
+    baseUrl: z.string().trim().max(MAX_URL_LENGTH).optional(),
+    apiKey: z.string().max(MAX_BODY_BYTES).optional(),
+    model: z.string().trim().max(128).optional(),
+    defaultSize: z.string().trim().max(16).optional(),
+    timeoutMs: z.number().int().positive().max(600_000).optional()
   }).strict().optional()
 }).strict()
 
@@ -727,6 +736,14 @@ export const writeInlineCompletionPayloadSchema = z
     editCandidate: writeInlineCompletionEditCandidateSchema.optional(),
     recentEdits: z.array(writeInlineEditRecentEditSchema).max(12).optional(),
     model: optionalTrimmedString(128)
+  })
+  .strict()
+
+export const writeInfographicPayloadSchema = z
+  .object({
+    text: trimmedString(WRITE_INFOGRAPHIC_MAX_TEXT_CHARS),
+    filePath: trimmedString(MAX_PATH_LENGTH),
+    workspaceRoot: trimmedString(MAX_PATH_LENGTH)
   })
   .strict()
 
