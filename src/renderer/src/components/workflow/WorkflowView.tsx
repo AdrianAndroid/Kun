@@ -210,6 +210,7 @@ export function WorkflowView({ leftSidebarCollapsed, onToggleLeftSidebar }: Prop
     async (patch: {
       name: string
       enabled: boolean
+      env: WorkflowV1['env']
       nodes: WorkflowNodeV1[]
       connections: WorkflowV1['connections']
     }): Promise<void> => {

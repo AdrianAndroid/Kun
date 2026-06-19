@@ -13,6 +13,7 @@ import {
   type WorkflowHttpMethod,
   type WorkflowInputFieldType,
   type WorkflowInputFieldV1,
+  type WorkflowNodeErrorMode,
   type WorkflowNodeRunResultV1,
   type WorkflowNodeV1,
   type WorkflowTriggerScheduleKind,
@@ -1485,6 +1486,62 @@ export function NodeConfigPanel({
         ) : null}
 
         {node.type === 'custom' ? <CustomNodeForm node={node} settings={settings} onChange={onChange} /> : null}
+
+        {!node.type.endsWith('-trigger') ? (
+          <div className="flex flex-col gap-2.5 border-t border-ds-border pt-3">
+            <span className="text-[12px] font-medium text-ds-muted">{t('workflowErrorHandling')}</span>
+            <Field label={t('workflowOnError')}>
+              <select
+                className={INPUT_CLASS}
+                value={node.onError ?? 'fail'}
+                onChange={(event) =>
+                  onChange({ ...node, onError: event.target.value as WorkflowNodeErrorMode })
+                }
+              >
+                {(['fail', 'continue', 'fallback'] as const).map((mode) => (
+                  <option key={mode} value={mode}>
+                    {t(`workflowOnError_${mode}`)}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <div className="flex items-center gap-2">
+              <Field label={t('workflowRetries')}>
+                <input
+                  type="number"
+                  min={0}
+                  max={10}
+                  className={INPUT_CLASS}
+                  value={node.retries ?? 0}
+                  onChange={(event) =>
+                    onChange({ ...node, retries: Math.max(0, Math.min(10, Math.round(Number(event.target.value) || 0))) })
+                  }
+                />
+              </Field>
+              <Field label={t('workflowRetryDelay')}>
+                <input
+                  type="number"
+                  min={0}
+                  className={INPUT_CLASS}
+                  value={node.retryDelayMs ?? 0}
+                  onChange={(event) =>
+                    onChange({ ...node, retryDelayMs: Math.max(0, Math.round(Number(event.target.value) || 0)) })
+                  }
+                />
+              </Field>
+            </div>
+            {node.onError === 'fallback' ? (
+              <Field label={t('workflowFallbackJson')} hint={t('workflowFallbackJsonHint')}>
+                <textarea
+                  className={`${INPUT_CLASS} min-h-[60px] resize-y font-mono text-[12px]`}
+                  value={node.fallbackJson ?? ''}
+                  placeholder='{ "ok": false }'
+                  onChange={(event) => onChange({ ...node, fallbackJson: event.target.value })}
+                />
+              </Field>
+            ) : null}
+          </div>
+        ) : null}
 
         <label className="mt-2 flex items-center gap-2 text-[13px] text-ds-muted">
           <input
