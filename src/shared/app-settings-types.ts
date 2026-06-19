@@ -561,6 +561,7 @@ export type WorkflowNodeKind =
   | 'output'
   | 'parameter-extractor'
   | 'question-classifier'
+  | 'human-approval'
   | 'custom'
 
 export const WORKFLOW_NODE_KINDS: readonly WorkflowNodeKind[] = [
@@ -587,6 +588,7 @@ export const WORKFLOW_NODE_KINDS: readonly WorkflowNodeKind[] = [
   'output',
   'parameter-extractor',
   'question-classifier',
+  'human-approval',
   'custom'
 ]
 
@@ -832,6 +834,17 @@ export type WorkflowQuestionClassifierConfigV1 = {
   reasoningEffort: ScheduleReasoningEffort
 }
 
+export type WorkflowApprovalDecision = 'approved' | 'rejected'
+
+/** Human-in-the-loop pause: the run waits for an approve/reject decision before continuing. */
+export type WorkflowHumanApprovalConfigV1 = {
+  title: string
+  instruction: string
+  /** Auto-resolve after this many ms; 0 = wait indefinitely. */
+  timeoutMs: number
+  onTimeout: WorkflowApprovalDecision
+}
+
 export const WORKFLOW_MODULE_FIELD_TYPES = ['text', 'textarea', 'number', 'boolean', 'select'] as const
 export type WorkflowModuleFieldType = (typeof WORKFLOW_MODULE_FIELD_TYPES)[number]
 
@@ -952,6 +965,7 @@ export type WorkflowNodeConfigByKind = {
   output: WorkflowOutputConfigV1
   'parameter-extractor': WorkflowParameterExtractorConfigV1
   'question-classifier': WorkflowQuestionClassifierConfigV1
+  'human-approval': WorkflowHumanApprovalConfigV1
   custom: WorkflowCustomConfigV1
 }
 
@@ -1010,6 +1024,18 @@ export type WorkflowNodeRunResultV1 = {
 export type WorkflowNodeTestResult =
   | { ok: true; result: WorkflowNodeRunResultV1 }
   | { ok: false; message: string }
+
+/** A human-approval node that has paused a run and is awaiting a decision. */
+export type WorkflowPendingApprovalV1 = {
+  token: string
+  workflowId: string
+  runId: string
+  nodeId: string
+  nodeName: string
+  title: string
+  instruction: string
+  createdAt: string
+}
 
 export type WorkflowRunV1 = {
   id: string
@@ -1108,6 +1134,8 @@ export type WorkflowRuntimeStatus = {
   /** workflowId -> nodeId -> live status, for lighting up the canvas during a run. */
   nodeStatus: Record<string, WorkflowNodeStatusMap>
   powerSaveBlockerActive: boolean
+  /** Human-approval nodes currently paused, awaiting an approve/reject decision. */
+  pendingApprovals: WorkflowPendingApprovalV1[]
 }
 
 export type ClawSkillSettingsV1 = {

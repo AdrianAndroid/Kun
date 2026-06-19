@@ -642,6 +642,43 @@ describe('WorkflowRuntime end-to-end execution', () => {
     runtime.stop()
   }, 15_000)
 
+  it('human-approval pauses the run and routes to the approved branch', async () => {
+    const workflow = buildWorkflow({
+      id: 'wf-ha',
+      name: 'HA',
+      enabled: true,
+      nodes: [
+        { id: 'm', type: 'manual-trigger', config: {} },
+        { id: 'a', type: 'human-approval', config: { title: 'Confirm', instruction: 'ok?', timeoutMs: 0, onTimeout: 'rejected' } },
+        { id: 'yes', type: 'set-fields', config: { fields: [{ key: 'path', value: 'approved' }], keepIncoming: false } },
+        { id: 'no', type: 'set-fields', config: { fields: [{ key: 'path', value: 'rejected' }], keepIncoming: false } }
+      ],
+      connections: [
+        { id: 'e1', source: 'm', sourceHandle: 'out', target: 'a', targetHandle: 'in' },
+        { id: 'e2', source: 'a', sourceHandle: 'approved', target: 'yes', targetHandle: 'in' },
+        { id: 'e3', source: 'a', sourceHandle: 'rejected', target: 'no', targetHandle: 'in' }
+      ]
+    })
+    const store = createStore(settingsWithWorkflows([workflow]))
+    const runtime = createWorkflowRuntime({ store: store as never, runtimeRequest: vi.fn() as never, logError: vi.fn() })
+    const runId = requireOk(await runtime.runWorkflow('wf-ha'))
+    await waitFor(async () => (await runtime.status()).pendingApprovals.length > 0, 10_000)
+    const pending = (await runtime.status()).pendingApprovals[0]
+    expect(pending.title).toBe('Confirm')
+    expect(pending.instruction).toBe('ok?')
+    expect(runtime.resolveApproval(pending.token, 'approved')).toBe(true)
+    await waitFor(async () => {
+      const run = store.read().workflow.workflows[0].runs.find((entry) => entry.id === runId)
+      return Boolean(run && run.status !== 'running')
+    }, 10_000)
+    const run = store.read().workflow.workflows[0].runs.find((entry) => entry.id === runId)!
+    expect(run.status).toBe('success')
+    expect(run.nodeResults.find((result) => result.nodeId === 'yes')?.status).toBe('success')
+    const rejectedBranch = run.nodeResults.find((result) => result.nodeId === 'no')
+    expect(rejectedBranch === undefined || rejectedBranch.status === 'skipped').toBe(true)
+    runtime.stop()
+  }, 20_000)
+
   it('sort orders the upstream array by a numeric field', async () => {
     const store = createStore(
       settingsWithWorkflows([

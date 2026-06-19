@@ -1690,6 +1690,56 @@ export function NodeConfigPanel({
           </>
         ) : null}
 
+        {node.type === 'human-approval' ? (
+          <>
+            <p className="text-[11.5px] leading-5 text-ds-faint">{t('workflowApprovalHint')}</p>
+            <Field label={t('workflowApprovalTitle')}>
+              <input
+                className={INPUT_CLASS}
+                value={node.config.title}
+                placeholder={t('workflowApprovalTitlePlaceholder')}
+                onChange={(event) => onChange({ ...node, config: { ...node.config, title: event.target.value } })}
+              />
+            </Field>
+            <Field label={t('workflowApprovalInstruction')}>
+              <textarea
+                className={`${INPUT_CLASS} min-h-[80px] resize-y`}
+                value={node.config.instruction}
+                placeholder={t('workflowApprovalInstructionPlaceholder')}
+                onChange={(event) => onChange({ ...node, config: { ...node.config, instruction: event.target.value } })}
+              />
+            </Field>
+            <Field label={t('workflowApprovalTimeout')} hint={t('workflowApprovalTimeoutHint')}>
+              <input
+                type="number"
+                min={0}
+                className={INPUT_CLASS}
+                value={node.config.timeoutMs}
+                onChange={(event) =>
+                  onChange({ ...node, config: { ...node.config, timeoutMs: Math.max(0, Math.round(Number(event.target.value) || 0)) } })
+                }
+              />
+            </Field>
+            {node.config.timeoutMs > 0 ? (
+              <Field label={t('workflowApprovalOnTimeout')}>
+                <select
+                  className={INPUT_CLASS}
+                  value={node.config.onTimeout}
+                  onChange={(event) =>
+                    onChange({
+                      ...node,
+                      config: { ...node.config, onTimeout: event.target.value === 'approved' ? 'approved' : 'rejected' }
+                    })
+                  }
+                >
+                  <option value="rejected">{t('workflowApprovalRejected')}</option>
+                  <option value="approved">{t('workflowApprovalApproved')}</option>
+                </select>
+              </Field>
+            ) : null}
+          </>
+        ) : null}
+
         {node.type === 'custom' ? <CustomNodeForm node={node} settings={settings} onChange={onChange} /> : null}
 
         {!node.type.endsWith('-trigger') ? (

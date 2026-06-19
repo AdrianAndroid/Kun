@@ -464,6 +464,17 @@ export function normalizeWorkflowNode(value: unknown, index: number): WorkflowNo
           reasoningEffort: normalizeScheduleReasoningEffort(config.reasoningEffort)
         }
       }
+    case 'human-approval':
+      return {
+        ...base,
+        type: 'human-approval',
+        config: {
+          title: asText(config.title),
+          instruction: asText(config.instruction),
+          timeoutMs: normalizePositiveInteger(config.timeoutMs, 0, 0, 86_400_000),
+          onTimeout: config.onTimeout === 'approved' ? 'approved' : 'rejected'
+        }
+      }
     case 'custom':
       return {
         ...base,

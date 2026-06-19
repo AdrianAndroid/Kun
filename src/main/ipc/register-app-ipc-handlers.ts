@@ -64,6 +64,7 @@ import {
   streamIdSchema,
   workflowRunNodePayloadSchema,
   workflowTestNodePayloadSchema,
+  workflowResolveApprovalPayloadSchema,
   workflowCodeCheckPayloadSchema,
   uiPluginIdPayloadSchema,
   workspaceDirectoryCreatePayloadSchema,
@@ -513,7 +514,8 @@ export function registerAppIpcHandlers(options: RegisterAppIpcHandlersOptions): 
     getWorkflowRuntime()?.status() ?? {
       runningWorkflowIds: [],
       nodeStatus: {},
-      powerSaveBlockerActive: false
+      powerSaveBlockerActive: false,
+      pendingApprovals: []
     }
   )
 
@@ -544,6 +546,13 @@ export function registerAppIpcHandlers(options: RegisterAppIpcHandlersOptions): 
     const workflowRuntime = getWorkflowRuntime()
     if (!workflowRuntime) return { ok: false, message: 'Workflow runtime is not initialized.' }
     return workflowRuntime.testNode(request.workflowId, request.nodeId, request.mockJson)
+  })
+
+  ipcMain.handle('workflow:approval:resolve', async (_, payload: unknown): Promise<{ ok: boolean }> => {
+    const request = parseIpcPayload('workflow:approval:resolve', workflowResolveApprovalPayloadSchema, payload)
+    const workflowRuntime = getWorkflowRuntime()
+    if (!workflowRuntime) return { ok: false }
+    return { ok: workflowRuntime.resolveApproval(request.token, request.decision) }
   })
 
   ipcMain.handle('workflow:code:check', async (_, payload: unknown): Promise<WorkflowCodeCheckResult> => {

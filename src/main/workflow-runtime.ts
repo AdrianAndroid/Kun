@@ -15,8 +15,10 @@ import type {
   WorkflowEnvVarV1,
   WorkflowHttpRequestConfigV1,
   WorkflowInputFieldV1,
+  WorkflowApprovalDecision,
   WorkflowNodeRunResultV1,
   WorkflowNodeTestResult,
+  WorkflowPendingApprovalV1,
   WorkflowNodeRunStatus,
   WorkflowNodeV1,
   WorkflowRunResult,
@@ -780,6 +782,11 @@ export class WorkflowRuntime {
   private scheduler: ReturnType<typeof setInterval> | null = null
   private runningWorkflowIds = new Set<string>()
   private cancelRequested = new Set<string>()
+  /** token -> paused human-approval node awaiting a decision. */
+  private pendingApprovals = new Map<
+    string,
+    { entry: WorkflowPendingApprovalV1; resolve: (decision: WorkflowApprovalDecision) => void }
+  >()
   /** workflowId -> nodeId -> live status, surfaced to the canvas via status(). */
   private liveNodeStatus = new Map<string, Map<string, WorkflowNodeRunStatus>>()
   private powerSaveBlockerId: number | null = null
@@ -1038,8 +1045,17 @@ export class WorkflowRuntime {
     return {
       runningWorkflowIds: [...this.runningWorkflowIds],
       nodeStatus,
-      powerSaveBlockerActive: this.isPowerSaveBlockerActive()
+      powerSaveBlockerActive: this.isPowerSaveBlockerActive(),
+      pendingApprovals: [...this.pendingApprovals.values()].map((pending) => pending.entry)
     }
+  }
+
+  /** Resolve a paused human-approval node. Returns false if the token is unknown (e.g. already decided). */
+  resolveApproval(token: string, decision: WorkflowApprovalDecision): boolean {
+    const pending = this.pendingApprovals.get(token)
+    if (!pending) return false
+    pending.resolve(decision)
+    return true
   }
 
   async runWorkflow(workflowId: string, input?: unknown): Promise<WorkflowRunResult> {
@@ -1065,6 +1081,10 @@ export class WorkflowRuntime {
   async stopWorkflow(workflowId: string): Promise<WorkflowRunResult> {
     if (!this.runningWorkflowIds.has(workflowId)) return { ok: false, message: 'Workflow is not running.' }
     this.cancelRequested.add(workflowId)
+    // Unblock any human-approval node paused in this run so it can wind down.
+    for (const pending of this.pendingApprovals.values()) {
+      if (pending.entry.workflowId === workflowId) pending.resolve('rejected')
+    }
     return { ok: true, runId: '', status: 'running', message: 'Stopping' }
   }
 
@@ -1297,6 +1317,7 @@ export class WorkflowRuntime {
         settings,
         statusWorkflowId: workflow.id,
         cancelId: workflow.id,
+        runId,
         depth: 0,
         workspaceOverride
       })
@@ -1324,6 +1345,9 @@ export class WorkflowRuntime {
       }))
       this.runningWorkflowIds.delete(workflow.id)
       this.cancelRequested.delete(workflow.id)
+      for (const [token, pending] of this.pendingApprovals) {
+        if (pending.entry.runId === runId) this.pendingApprovals.delete(token)
+      }
       setTimeout(() => this.liveNodeStatus.delete(workflow.id), LIVE_STATUS_LINGER_MS)
     }
     return { ok: runStatus !== 'error', runId, status: runStatus, message: runMessage }
@@ -1344,6 +1368,8 @@ export class WorkflowRuntime {
       settings: AppSettingsV1
       statusWorkflowId?: string
       cancelId?: string
+      /** Run id, for keying human-approval pauses to this run. */
+      runId?: string
       depth: number
       workspaceOverride?: string
       /** Loop frame for body sub-runs, exposed via {{$loop.*}}. */
@@ -1482,7 +1508,10 @@ export class WorkflowRuntime {
                 ctx.depth,
                 runWorkspace,
                 scopeFor(),
-                runVars
+                runVars,
+                ctx.statusWorkflowId && ctx.runId
+                  ? { workflowId: ctx.statusWorkflowId, runId: ctx.runId }
+                  : undefined
               )
               break
             } catch (error) {
@@ -1576,7 +1605,8 @@ export class WorkflowRuntime {
     depth = 0,
     runWorkspace = '',
     scope: InterpScope = {},
-    runVars: Record<string, unknown> = {}
+    runVars: Record<string, unknown> = {},
+    runRef?: { workflowId: string; runId: string }
   ): Promise<NodeOutcome> {
     switch (node.type) {
       case 'manual-trigger':
@@ -1957,6 +1987,43 @@ export class WorkflowRuntime {
         const index = Number.isFinite(num) && num >= 1 && num <= categories.length ? num - 1 : 0
         const chosen = categories[index]
         return { payload, message: `→ ${chosen.label}`, branch: chosen.id, threadId: result.threadId }
+      }
+      case 'human-approval': {
+        // Pause the run until a decision arrives. Routes to the approved/rejected branch.
+        // Note: the pending state is in-memory — an app restart mid-pause loses the run.
+        if (!runRef) {
+          // Single-node test / validation: cannot pause, so auto-approve.
+          return { payload, message: 'approved (test)', branch: 'approved' }
+        }
+        const token = randomUUID()
+        const entry: WorkflowPendingApprovalV1 = {
+          token,
+          workflowId: runRef.workflowId,
+          runId: runRef.runId,
+          nodeId: node.id,
+          nodeName: node.name,
+          title: node.config.title.trim() || node.name.trim() || 'Approval required',
+          instruction: interpolate(node.config.instruction, payload, scope),
+          createdAt: new Date().toISOString()
+        }
+        const decision = await new Promise<WorkflowApprovalDecision>((resolve) => {
+          let timer: ReturnType<typeof setTimeout> | undefined
+          const settle = (value: WorkflowApprovalDecision): void => {
+            if (timer) clearTimeout(timer)
+            this.pendingApprovals.delete(token)
+            resolve(value)
+          }
+          if (node.config.timeoutMs > 0) {
+            timer = setTimeout(() => settle(node.config.onTimeout), node.config.timeoutMs)
+          }
+          this.pendingApprovals.set(token, { entry, resolve: settle })
+        })
+        if (decision === 'rejected') return { payload, message: 'rejected', branch: 'rejected' }
+        const approvedJson =
+          payload.json && typeof payload.json === 'object' && !Array.isArray(payload.json)
+            ? { ...(payload.json as Record<string, unknown>), _approved: true }
+            : payload.json
+        return { payload: { json: approvedJson, text: payload.text }, message: 'approved', branch: 'approved' }
       }
       case 'custom': {
         const module = settings.workflow.modules.find((item) => item.id === node.config.moduleId)

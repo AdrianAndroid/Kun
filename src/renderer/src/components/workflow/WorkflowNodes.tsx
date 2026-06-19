@@ -28,6 +28,7 @@ import {
   Timer,
   Trash2,
   Type,
+  UserCheck,
   Webhook,
   Workflow,
   type LucideIcon
@@ -75,6 +76,7 @@ export const NODE_ICONS: Record<WorkflowNodeKind, LucideIcon> = {
   output: LogOut,
   'parameter-extractor': ListChecks,
   'question-classifier': Tags,
+  'human-approval': UserCheck,
   custom: Blocks
 }
 
@@ -147,6 +149,8 @@ function nodeSummary(node: WorkflowNodeV1): string {
       return `${node.config.fields.length} field(s)`
     case 'question-classifier':
       return `${node.config.categories.length} categories`
+    case 'human-approval':
+      return node.config.title.trim() || 'pause'
     default:
       return ''
   }
@@ -258,6 +262,17 @@ function WorkflowCanvasNode({ id, data, selected }: NodeProps): ReactElement {
           {node.config.fallback ? (
             <Handle type="source" position={Position.Right} id="fallback" style={{ top: '88%' }} />
           ) : null}
+        </>
+      ) : node.type === 'human-approval' ? (
+        <>
+          <Handle type="source" position={Position.Right} id="approved" style={{ top: '38%' }} />
+          <Handle type="source" position={Position.Right} id="rejected" style={{ top: '70%' }} />
+          <div className="pointer-events-none absolute right-1 top-[30%] text-[9px] font-medium text-emerald-600">
+            {t('workflowApprovalApproved')}
+          </div>
+          <div className="pointer-events-none absolute right-1 top-[62%] text-[9px] font-medium text-red-500">
+            {t('workflowApprovalRejected')}
+          </div>
         </>
       ) : node.type === 'question-classifier' ? (
         <>

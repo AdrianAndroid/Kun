@@ -33,7 +33,8 @@ export const WORKFLOW_PALETTE: readonly WorkflowNodeKind[] = [
   'json',
   'output',
   'parameter-extractor',
-  'question-classifier'
+  'question-classifier',
+  'human-approval'
 ]
 
 export const TRIGGER_KINDS: ReadonlySet<WorkflowNodeKind> = new Set([
@@ -47,7 +48,7 @@ export type WorkflowPaletteGroup = { id: string; kinds: readonly WorkflowNodeKin
 export const WORKFLOW_PALETTE_GROUPS: readonly WorkflowPaletteGroup[] = [
   { id: 'trigger', kinds: ['manual-trigger', 'schedule-trigger', 'webhook-trigger'] },
   { id: 'ai', kinds: ['ai-agent', 'generate-image', 'parameter-extractor'] },
-  { id: 'flow', kinds: ['condition', 'switch', 'question-classifier', 'filter', 'merge', 'loop'] },
+  { id: 'flow', kinds: ['condition', 'switch', 'question-classifier', 'filter', 'merge', 'loop', 'human-approval'] },
   { id: 'data', kinds: ['set-fields', 'template', 'json', 'code', 'sort', 'limit', 'aggregate'] },
   { id: 'action', kinds: ['http-request', 'subworkflow', 'delay', 'output'] }
 ]
@@ -189,6 +190,8 @@ export function createWorkflowNode(
           reasoningEffort: 'medium'
         }
       }
+    case 'human-approval':
+      return { ...base, type: 'human-approval', config: { title: '', instruction: '', timeoutMs: 0, onTimeout: 'rejected' } }
     case 'custom':
       return { ...base, type: 'custom', config: { moduleId: '', values: {} } }
     default:

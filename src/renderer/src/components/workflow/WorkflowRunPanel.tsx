@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Background, BackgroundVariant, ReactFlow, ReactFlowProvider } from '@xyflow/react'
-import { LayoutGrid, List as ListIcon, Loader2, X } from 'lucide-react'
+import { Check, LayoutGrid, List as ListIcon, Loader2, UserCheck, X } from 'lucide-react'
 import {
   normalizeWorkflowSettings,
   type WorkflowNodeRunStatus,
@@ -89,6 +89,10 @@ export function WorkflowRunPanel({ enabled }: Props): ReactElement | null {
   )
   const isRunning = Boolean(shownId && status?.runningWorkflowIds.includes(shownId))
   const hasLiveStatus = Object.keys(nodeStatus).length > 0
+  const pendingApprovals = useMemo(
+    () => (status?.pendingApprovals ?? []).filter((approval) => approval.workflowId === shownId),
+    [status, shownId]
+  )
 
   // Load the workflow definition for the shown run; reload when the run finishes
   // so the step list can pick up the persisted per-node results.
@@ -167,6 +171,43 @@ export function WorkflowRunPanel({ enabled }: Props): ReactElement | null {
           <X className="h-4 w-4" strokeWidth={1.8} />
         </button>
       </div>
+
+      {pendingApprovals.length > 0 ? (
+        <div className="flex flex-col gap-2 border-b border-amber-500/30 bg-amber-500/10 px-3 py-3">
+          {pendingApprovals.map((approval) => (
+            <div
+              key={approval.token}
+              className="flex flex-col gap-2 rounded-lg border border-amber-500/40 bg-ds-card px-3 py-2.5"
+            >
+              <div className="flex items-center gap-2">
+                <UserCheck className="h-4 w-4 shrink-0 text-amber-600" strokeWidth={1.9} />
+                <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold text-ds-ink">{approval.title}</span>
+              </div>
+              {approval.instruction ? (
+                <p className="whitespace-pre-wrap text-[12px] leading-5 text-ds-muted">{approval.instruction}</p>
+              ) : null}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => void window.kunGui.resolveWorkflowApproval(approval.token, 'approved')}
+                  className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-emerald-500/90 px-3 py-1.5 text-[12.5px] font-semibold text-white transition hover:bg-emerald-500"
+                >
+                  <Check className="h-3.5 w-3.5" strokeWidth={2.2} />
+                  {t('workflowApprovalApprove')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void window.kunGui.resolveWorkflowApproval(approval.token, 'rejected')}
+                  className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-ds-border bg-ds-card px-3 py-1.5 text-[12.5px] font-semibold text-red-600 transition hover:bg-red-500/10"
+                >
+                  <X className="h-3.5 w-3.5" strokeWidth={2.2} />
+                  {t('workflowApprovalReject')}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       {mode === 'canvas' ? (
         <div className="relative min-h-0 flex-1">

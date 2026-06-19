@@ -9,6 +9,7 @@ import type {
   ScheduleRunResult,
   ScheduleRuntimeStatus,
   ScheduleTaskFromTextResult,
+  WorkflowApprovalDecision,
   WorkflowCodeCheckResult,
   WorkflowCodeLanguage,
   WorkflowNodeTestResult,
@@ -280,6 +281,7 @@ export type KunGuiApi = {
   stopWorkflow: (workflowId: string) => Promise<WorkflowRunResult>
   runWorkflowNode: (workflowId: string, nodeId: string) => Promise<WorkflowRunResult>
   testWorkflowNode: (workflowId: string, nodeId: string, mockJson: string) => Promise<WorkflowNodeTestResult>
+  resolveWorkflowApproval: (token: string, decision: WorkflowApprovalDecision) => Promise<{ ok: boolean }>
   checkWorkflowCode: (language: WorkflowCodeLanguage, code: string) => Promise<WorkflowCodeCheckResult>
   startClawImInstallQr: (
     provider: 'feishu' | 'weixin',

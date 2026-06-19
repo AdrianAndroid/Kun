@@ -947,6 +947,15 @@ const workflowQuestionClassifierConfigSchema = z
   })
   .strict()
 
+const workflowHumanApprovalConfigSchema = z
+  .object({
+    title: z.string().max(200).optional(),
+    instruction: z.string().max(MAX_BODY_BYTES).optional(),
+    timeoutMs: z.number().int().min(0).max(86_400_000).optional(),
+    onTimeout: z.enum(['approved', 'rejected']).optional()
+  })
+  .strict()
+
 const workflowNodePatchSchema = z.discriminatedUnion('type', [
   z
     .object({
@@ -998,6 +1007,7 @@ const workflowNodePatchSchema = z.discriminatedUnion('type', [
   z.object({ ...workflowNodeBaseShape, type: z.literal('output'), config: workflowOutputConfigSchema.optional() }).strict(),
   z.object({ ...workflowNodeBaseShape, type: z.literal('parameter-extractor'), config: workflowParameterExtractorConfigSchema.optional() }).strict(),
   z.object({ ...workflowNodeBaseShape, type: z.literal('question-classifier'), config: workflowQuestionClassifierConfigSchema.optional() }).strict(),
+  z.object({ ...workflowNodeBaseShape, type: z.literal('human-approval'), config: workflowHumanApprovalConfigSchema.optional() }).strict(),
   z.object({ ...workflowNodeBaseShape, type: z.literal('custom'), config: workflowCustomConfigSchema.optional() }).strict()
 ])
 
@@ -1131,6 +1141,13 @@ export const workflowTestNodePayloadSchema = z
     workflowId: trimmedString(MAX_ID_LENGTH),
     nodeId: trimmedString(MAX_ID_LENGTH),
     mockJson: z.string().max(MAX_BODY_BYTES)
+  })
+  .strict()
+
+export const workflowResolveApprovalPayloadSchema = z
+  .object({
+    token: trimmedString(MAX_ID_LENGTH),
+    decision: z.enum(['approved', 'rejected'])
   })
   .strict()
 

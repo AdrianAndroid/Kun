@@ -26,6 +26,8 @@ const api = {
     ipcRenderer.invoke('workflow:node:run', { workflowId, nodeId }),
   testWorkflowNode: (workflowId, nodeId, mockJson) =>
     ipcRenderer.invoke('workflow:node:test', { workflowId, nodeId, mockJson }),
+  resolveWorkflowApproval: (token, decision) =>
+    ipcRenderer.invoke('workflow:approval:resolve', { token, decision }),
   checkWorkflowCode: (language, code) => ipcRenderer.invoke('workflow:code:check', { language, code }),
   startClawImInstallQr: (provider, options) =>
     ipcRenderer.invoke('claw:im-install:qrcode', { provider, isLark: options?.isLark }),
